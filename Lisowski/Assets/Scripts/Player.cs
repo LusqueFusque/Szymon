@@ -1,143 +1,170 @@
-﻿using UnityEngine;
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
 
-public class Player : MonoBehaviour
+public class PlayerController : MonoBehaviour
 {
-    [Header("Movement Settings")]
-    public float speed = 1.6f;
-    public float jumpForce = 4f;
-    public float fallAnimationDelay = 2f;
-
     private Rigidbody2D rb;
     private Animator anim;
-    private SpriteRenderer spriteRenderer;
-
+    private SpriteRenderer sr;
     private bool isGrounded;
     private bool isAttacking;
-    private bool isFalling;
-    private bool isMoving;
-    private bool startWalkCompleted = false;
+    private bool isJumping;
+    private bool isWalking;
+    private bool isStartWalking;
 
-    void Start()
+    public float moveForce = 1.6f;
+    public float jumpForce = 4f;
+    public Transform groundCheck;
+    public Vector2 groundCheckSize;
+    public LayerMask groundLayer;
+
+    private void Start()
     {
         rb = GetComponent<Rigidbody2D>();
         anim = GetComponent<Animator>();
-        spriteRenderer = GetComponent<SpriteRenderer>();
-        Debug.Log("Player initialized");
+        sr = GetComponent<SpriteRenderer>();
     }
 
-    void Update()
+    private void Update()
     {
-        if (isAttacking) return;
-        HandleMovement();
-        HandleJump();
-        HandleAttack();
-        UpdateIdleState();
-    }
+        isGrounded = Physics2D.OverlapBox(groundCheck.position, groundCheckSize, 0, groundLayer);
 
-    void HandleMovement()
-    {
-        float move = Input.GetAxisRaw("Horizontal");
-        Debug.Log("Move input: " + move);
-
-        if (move != 0 && isGrounded && !isFalling)
+        if (isGrounded && isJumping)
         {
-            isMoving = true;
-            rb.velocity = new Vector2(move * speed, rb.velocity.y);
-            spriteRenderer.flipX = move < 0;
-            Debug.Log("Player moving");
 
-            if (!startWalkCompleted)
+            isJumping = false;
+            anim.SetBool("Jump", false);
+            anim.SetBool("Idle", true);
+        }
+
+        if (isAttacking) return;
+
+        if (Input.GetKeyDown(KeyCode.Z))
+        {
+            Attack();
+            return;
+        }
+
+        if (isJumping || !isGrounded) return;
+
+        if (Input.GetKeyDown(KeyCode.UpArrow))
+        {
+            Jump();
+            return;
+        }
+
+        Move();
+    }
+
+    private void Move()
+    {
+        float moveInput = Input.GetAxisRaw("Horizontal");
+
+        if (moveInput == 0)
+        {
+            if (isStartWalking || isWalking)
             {
-                anim.SetTrigger("StartWalk");
-                startWalkCompleted = true;
-                Debug.Log("StartWalk animation triggered");
+                isStartWalking = false;
+                isWalking = false;
+                anim.SetBool("StartWalk", false);
+                anim.SetBool("Walk", false);
+                anim.SetBool("Idle", true);
             }
-            else
-            {
-                anim.SetBool("isWalking", true);
-                Debug.Log("Walking animation active");
-            }
+            return;
+        }
+
+        if (!isWalking && !isStartWalking)
+        {
+            isStartWalking = true;
+            anim.SetBool("Idle", false);
+            anim.SetBool("StartWalk", true);
+        }
+
+        rb.velocity = new Vector2(moveInput * moveForce, rb.velocity.y);
+        sr.flipX = moveInput < 0;
+    }
+
+    public void StartWalkTransition()
+    {
+        if (Input.GetAxisRaw("Horizontal") != 0)
+        {
+            isStartWalking = false;
+            isWalking = true;
+            anim.SetBool("StartWalk", false);
+            anim.SetBool("Walk", true);
         }
         else
         {
-            isMoving = false;
-            rb.velocity = new Vector2(0, rb.velocity.y);
+            isStartWalking = false;
+            anim.SetBool("StartWalk", false);
+            anim.SetBool("Idle", true);
         }
     }
 
-    void HandleJump()
+    private void Jump()
     {
-        if (Input.GetKeyDown(KeyCode.UpArrow) && isGrounded)
-        {
-            rb.velocity = new Vector2(rb.velocity.x, jumpForce);
-            isGrounded = false;
-            anim.SetBool("isJumping", true);
-            Debug.Log("Player jumped");
-        }
-
-        if (!isGrounded && rb.velocity.y < 0)
-        {
-            isFalling = true;
-            anim.SetBool("isJumping", true);
-            Debug.Log("Player falling");
-        }
+        isJumping = true;
+        rb.velocity = new Vector2(rb.velocity.x, jumpForce);
+        anim.SetBool("Jump", true);
+        anim.SetBool("Idle", false);
     }
 
-    void HandleAttack()
+    public void EndJump()
     {
-        if (Input.GetKeyDown(KeyCode.Z))
-        {
-            isAttacking = true;
-            rb.velocity = Vector2.zero;
-            anim.SetBool("isAttacking", true);
-            anim.SetBool("isWalking", false);
-            anim.SetBool("isJumping", false);
-            anim.ResetTrigger("StartWalk");
-            startWalkCompleted = false;
-            Debug.Log("Player attacking");
-            Invoke("EndAttack", 2.8f);
-        }
+        isJumping = false;
+        anim.SetBool("Jump", false);
+        anim.SetBool("Idle", true);
     }
 
-    void UpdateIdleState()
+    private void Attack()
     {
-        if (!isMoving && !isAttacking && isGrounded && !isFalling && !anim.GetBool("isJumping"))
-        {
-            anim.Play("Idle");
-            anim.ResetTrigger("StartWalk");
-            startWalkCompleted = false;
-            Debug.Log("Idle animation active");
-        }
+        isAttacking = true;
+        anim.SetBool("Attack", true);
     }
 
-    void EndAttack()
+    public void EndAttack()
     {
         isAttacking = false;
-        anim.SetBool("isAttacking", false);
-        Debug.Log("Attack ended");
+        anim.SetBool("Attack", false);
+        anim.SetBool("Idle", true);
     }
 
-    private void OnCollisionEnter2D(Collision2D collision)
+    public void OnStartWalkAnimationComplete()
     {
-        if (collision.gameObject.CompareTag("Ground"))
+        if (Input.GetAxisRaw("Horizontal") != 0)
         {
-            isGrounded = true;
-            Debug.Log("Player grounded");
-            if (isFalling)
-            {
-                Invoke("EndFallAnimation", fallAnimationDelay);
-            }
-            else
-            {
-                anim.SetBool("isJumping", false);
-            }
+            isStartWalking = false;
+            isWalking = true;
+            anim.SetBool("StartWalk", false);
+            anim.SetBool("Walk", true);
+        }
+        else
+        {
+            isStartWalking = false;
+            anim.SetBool("StartWalk", false);
+            anim.SetBool("Idle", true);
         }
     }
-
-    void EndFallAnimation()
+    public void OnJumpAnimationComplete()
     {
-        isFalling = false;
-        anim.SetBool("isJumping", false);
-        Debug.Log("Fall animation ended");
+        isJumping = false;
+        anim.SetBool("Jump", false);
+        anim.SetBool("Idle", true);
+    }
+
+    public void OnAttackAnimationComplete()
+    {
+        isAttacking = false;
+        anim.SetBool("Attack", false);
+        anim.SetBool("Idle", true);
+    }
+    private void SetAnimationState(string state)
+    {
+        anim.SetBool("Idle", state == "Idle");
+        anim.SetBool("StartWalk", state == "StartWalk");
+        anim.SetBool("Walk", state == "Walk");
+        anim.SetBool("Jump", state == "Jump");
+        anim.SetBool("Attack", state == "Attack");
     }
 }
