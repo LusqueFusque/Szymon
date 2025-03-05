@@ -46,9 +46,10 @@ public class Player : MonoBehaviour
             spriteRenderer.flipX = move < 0;
             Debug.Log("Player moving");
 
-            if (!startWalkCompleted && !anim.GetCurrentAnimatorStateInfo(0).IsName("StartWalk"))
+            if (!startWalkCompleted)
             {
                 anim.SetTrigger("StartWalk");
+                startWalkCompleted = true;
                 Debug.Log("StartWalk animation triggered");
             }
             else
@@ -61,7 +62,6 @@ public class Player : MonoBehaviour
         {
             isMoving = false;
             rb.velocity = new Vector2(0, rb.velocity.y);
-            startWalkCompleted = false;
         }
     }
 
@@ -104,17 +104,9 @@ public class Player : MonoBehaviour
         if (!isMoving && !isAttacking && isGrounded && !isFalling && !anim.GetBool("isJumping"))
         {
             anim.Play("Idle");
+            anim.ResetTrigger("StartWalk");
+            startWalkCompleted = false;
             Debug.Log("Idle animation active");
-        }
-    }
-
-    public void OnStartWalkAnimationComplete()
-    {
-        startWalkCompleted = true;
-        Debug.Log("StartWalk animation completed");
-        if (isMoving)
-        {
-            anim.SetBool("isWalking", true);
         }
     }
 
