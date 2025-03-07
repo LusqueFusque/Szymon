@@ -4,6 +4,8 @@ using UnityEngine;
 
 public class PlayerController : MonoBehaviour
 {
+    // Animação
+
     private Rigidbody2D rb;
     private Animator anim;
     private SpriteRenderer sr;
@@ -19,11 +21,21 @@ public class PlayerController : MonoBehaviour
     public Vector2 groundCheckSize;
     public LayerMask groundLayer;
 
+
+    // Áudio
+
+    private AudioSource audioSource;
+    public AudioClip jumpSound;
+    public AudioClip landSound;
+    public AudioClip walkSound;
+    public AudioClip attackSound;
+
     private void Start()
     {
         rb = GetComponent<Rigidbody2D>();
         anim = GetComponent<Animator>();
         sr = GetComponent<SpriteRenderer>();
+        audioSource = GetComponent<AudioSource>();
     }
 
     private void Update()
@@ -36,6 +48,7 @@ public class PlayerController : MonoBehaviour
             isJumping = false;
             anim.SetBool("Jump", false);
             anim.SetBool("Idle", true);
+
         }
 
         if (isAttacking) return;
@@ -70,7 +83,13 @@ public class PlayerController : MonoBehaviour
                 anim.SetBool("StartWalk", false);
                 anim.SetBool("Walk", false);
                 anim.SetBool("Idle", true);
-            }
+
+                //audio
+                StopWalkingSound();
+
+            } 
+
+
             return;
         }
 
@@ -79,6 +98,10 @@ public class PlayerController : MonoBehaviour
             isStartWalking = true;
             anim.SetBool("Idle", false);
             anim.SetBool("StartWalk", true);
+
+            //audio
+            PlayWalkingSound();
+
         }
 
         rb.velocity = new Vector2(moveInput * moveForce, rb.velocity.y);
@@ -93,6 +116,8 @@ public class PlayerController : MonoBehaviour
             isWalking = true;
             anim.SetBool("StartWalk", false);
             anim.SetBool("Walk", true);
+
+
         }
         else
         {
@@ -108,6 +133,10 @@ public class PlayerController : MonoBehaviour
         rb.velocity = new Vector2(rb.velocity.x, jumpForce);
         anim.SetBool("Jump", true);
         anim.SetBool("Idle", false);
+
+        //audio
+        PlaySound (jumpSound);
+
     }
 
     public void EndJump()
@@ -119,8 +148,20 @@ public class PlayerController : MonoBehaviour
 
     private void Attack()
     {
+        if (isAttacking) return;
+
         isAttacking = true;
+        rb.velocity = Vector2.zero;
+        anim.SetBool("Idle", false);
         anim.SetBool("Attack", true);
+
+        StartCoroutine(ResetAttackState());
+    }
+
+    private IEnumerator ResetAttackState()
+    {
+        yield return new WaitForSeconds(6.8f);
+        EndAttack();
     }
 
     public void EndAttack()
@@ -167,4 +208,43 @@ public class PlayerController : MonoBehaviour
         anim.SetBool("Jump", state == "Jump");
         anim.SetBool("Attack", state == "Attack");
     }
+
+
+    private void PlaySound (AudioClip clip)
+    {
+        if (clip != null)
+        {
+            audioSource.PlayOneShot (clip);
+        }
+    }
+
+    public void PlayAttackSound()
+    {
+        PlaySound(attackSound);
+    }
+
+    public void PlayLandingSound()
+    {
+        PlaySound(landSound);
+    }
+
+    private void PlayWalkingSound()
+    {
+        if (!audioSource.isPlaying || audioSource.clip != walkSound)
+        {
+            audioSource.clip = walkSound;
+            audioSource.loop = true;
+            audioSource.Play ();
+        }
+    }
+
+    private void StopWalkingSound()
+    {
+        if (audioSource.isPlaying && audioSource.clip == walkSound)
+        {
+            audioSource.loop = false;
+            audioSource.Stop();
+        }
+    }
+
 }
